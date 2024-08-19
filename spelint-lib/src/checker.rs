@@ -15,6 +15,10 @@ impl SpellChecker {
     where
         T: IntoIterator<Item = (String, u64)>,
     {
+        let mut dictionary = dictionary.into_iter().collect::<Vec<_>>();
+
+        dictionary.sort_by(|a, b| a.0.cmp(&b.0));
+
         Self {
             alphabet: alphabet.graphemes(true).map(str::to_string).collect(),
             dictionary: Map::from_iter(dictionary).unwrap(),
