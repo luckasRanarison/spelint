@@ -1,0 +1,3 @@
+[workspace]
+members = ["spelint-lib"]
+resolver = "2"
