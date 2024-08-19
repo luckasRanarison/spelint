@@ -1,6 +1,6 @@
 use crate::utils::match_str_case;
 
-use fst::Map;
+use fst::{automaton::Levenshtein, IntoStreamer, Map};
 use std::collections::HashSet;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -29,65 +29,18 @@ impl SpellChecker {
         self.dictionary.contains_key(word.to_lowercase())
     }
 
-    pub fn get_corrections(&self, word: &str, depth: usize, limit: usize) -> Vec<String> {
-        let mut candidates = self
-            .get_edits(&word.to_lowercase(), depth)
+    pub fn get_corrections(&self, word: &str, depth: u32, limit: usize) -> Vec<String> {
+        let candidates = Levenshtein::new(word, depth).unwrap();
+        let stream = self.dictionary.search(candidates).into_stream();
+        let mut corrections = stream.into_str_vec().unwrap();
+
+        corrections.sort_by(|a, b| b.1.cmp(&a.1));
+
+        corrections
             .into_iter()
-            .filter_map(|w| self.dictionary.get(&w).map(|freq| (freq, w)))
             .take(limit)
-            .collect::<Vec<_>>();
-
-        candidates.sort_by(|a, b| b.0.cmp(&a.0));
-
-        candidates
-            .into_iter()
-            .map(|(_, s)| match_str_case(word, &s))
+            .map(|(s, _)| match_str_case(word, &s))
             .collect()
-    }
-
-    fn get_edits_one(&self, word: &str) -> HashSet<String> {
-        let splits = word
-            .grapheme_indices(true)
-            .map(|(i, _)| (&word[..i], &word[i..]))
-            .collect::<Vec<_>>();
-
-        let deletions = splits
-            .iter()
-            .map(|(l, r)| format!("{l}{}", r.graphemes(true).skip(1).collect::<String>()));
-
-        let insertions = splits
-            .iter()
-            .flat_map(|(l, r)| self.alphabet.iter().map(move |c| format!("{l}{c}{r}")));
-
-        let replacements = splits.iter().flat_map(|(l, r)| {
-            let r = r.graphemes(true).skip(1).collect::<String>();
-            self.alphabet.iter().map(move |c| format!("{l}{c}{r}"))
-        });
-
-        let transpositions = splits.iter().flat_map(|(l, r)| {
-            let g = r.graphemes(true).collect::<Vec<_>>();
-            match g.get(..2) {
-                Some([f, s]) => Some(format!("{l}{s}{f}{}", g[2..].join(""))),
-                _ => None,
-            }
-        });
-
-        deletions
-            .chain(insertions)
-            .chain(replacements)
-            .chain(transpositions)
-            .collect()
-    }
-
-    fn get_edits(&self, word: &str, depth: usize) -> HashSet<String> {
-        match depth {
-            0 => [word.to_string()].into(),
-            _ => self
-                .get_edits_one(word)
-                .into_iter()
-                .flat_map(|w| self.get_edits(&w, depth - 1))
-                .collect(),
-        }
     }
 }
 

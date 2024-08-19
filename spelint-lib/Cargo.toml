@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-fst = "0.4.7"
+fst = { version = "0.4.7", features = ["levenshtein"] }
 regex = "1.10.6"
 unicode-segmentation = "1.11.0"
