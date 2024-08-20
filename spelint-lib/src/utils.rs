@@ -1,6 +1,11 @@
+use std::iter::repeat;
+
 pub fn match_str_case(pattern: &str, value: &str) -> String {
+    let last_char = pattern.chars().last().unwrap_or_default();
+
     pattern
         .chars()
+        .chain(repeat(last_char))
         .zip(value.chars())
         .map(|(p, c)| match_char_case(p, c))
         .collect()
