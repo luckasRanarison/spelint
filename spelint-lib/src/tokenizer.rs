@@ -2,8 +2,8 @@ use regex::Regex;
 
 #[derive(Debug)]
 pub struct Token<'a> {
-    pub byte_start: usize,
-    pub byte_end: usize,
+    pub start: usize,
+    pub end: usize,
     pub text: &'a str,
 }
 
@@ -25,8 +25,8 @@ impl Tokenizer {
         self.word_regex
             .find_iter(text)
             .map(|m| Token {
-                byte_start: m.start(),
-                byte_end: m.end(),
+                start: m.start(),
+                end: m.end(),
                 text: m.as_str(),
             })
             .collect()

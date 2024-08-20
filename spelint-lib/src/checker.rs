@@ -1,17 +1,18 @@
-use crate::utils::match_str_case;
+use crate::{
+    tokenizer::{Token, Tokenizer},
+    utils::match_str_case,
+};
 
 use fst::{automaton::Levenshtein, IntoStreamer, Map};
-use std::collections::HashSet;
-use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Default)]
 pub struct SpellChecker {
-    alphabet: HashSet<String>,
     dictionary: Map<Vec<u8>>,
+    tokenizer: Tokenizer,
 }
 
 impl SpellChecker {
-    pub fn new<T>(alphabet: &str, dictionary: T) -> Self
+    pub fn new<T>(dictionary: T) -> Self
     where
         T: IntoIterator<Item = (String, u64)>,
     {
@@ -20,17 +21,21 @@ impl SpellChecker {
         dictionary.sort_by(|a, b| a.0.cmp(&b.0));
 
         Self {
-            alphabet: alphabet.graphemes(true).map(str::to_string).collect(),
             dictionary: Map::from_iter(dictionary).unwrap(),
+            tokenizer: Tokenizer::default(),
         }
     }
 
-    pub fn check(&self, word: &str) -> bool {
-        self.dictionary.contains_key(word.to_lowercase())
+    pub fn get_unknowns<'a>(&self, sentence: &'a str) -> Vec<Token<'a>> {
+        self.tokenizer
+            .tokenize(sentence)
+            .into_iter()
+            .filter(|t| !self.check(t.text))
+            .collect()
     }
 
-    pub fn get_corrections(&self, word: &str, depth: u32, limit: usize) -> Vec<String> {
-        let candidates = Levenshtein::new(word, depth).unwrap();
+    pub fn get_corrections(&self, word: &str, distance: u32, limit: usize) -> Vec<String> {
+        let candidates = Levenshtein::new(word, distance).unwrap();
         let stream = self.dictionary.search(candidates).into_stream();
         let mut corrections = stream.into_str_vec().unwrap();
 
@@ -42,6 +47,10 @@ impl SpellChecker {
             .map(|(s, _)| match_str_case(word, &s))
             .collect()
     }
+
+    fn check(&self, word: &str) -> bool {
+        self.dictionary.contains_key(word.to_lowercase())
+    }
 }
 
 #[cfg(test)]
@@ -50,7 +59,6 @@ mod tests {
 
     #[test]
     fn test_correction() {
-        let alphabet = "hdelomopr";
         let dictionary = [
             ("hell".to_string(), 70),
             ("hello".to_string(), 100),
@@ -59,7 +67,7 @@ mod tests {
             ("world".to_string(), 100),
         ];
 
-        let checker = SpellChecker::new(alphabet, dictionary);
+        let checker = SpellChecker::new(dictionary);
         let suggestions = checker.get_corrections("hella", 1, 5);
         let expected = vec!["hello", "hell"];
 
